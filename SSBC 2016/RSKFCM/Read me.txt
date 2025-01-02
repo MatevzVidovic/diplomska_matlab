@@ -1,0 +1,13 @@
+% Sclera Segmentation  of an eye image.
+% Based on Robust Spatial Kenrel Fuzzy c-means Clustering
+% Author: 
+% S V Aruna Kumar and B S Harish
+% arunkumarsv55@gmail.com
+% Department of Information Science and Engineering
+% SJCE, Mysuru,Karnataka,India
+% Jan 2016
+%File Description
+
+Read_file reads the files from the directory and writes to the specified output file
+
+RSKFCM is source file of our proposed method Robust Spatial Kernel FCM method

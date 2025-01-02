@@ -1,0 +1,15 @@
+% Sclera Segmentation  of an eye image.
+% Based on Modified Intutionistic Fuzzy Clustering method
+% Author: 
+% S V Aruna Kumar and B S Harish
+% arunkumarsv55@gmail.com
+% Department of Information Science and Engineering
+% SJCE, Mysuru,Karnataka,India
+% April 2017
+
+1. Run Read_file 
+
+
+2. Specify the output path where the segmetned images need to be written
+
+3. Specify the directory of the input images
