@@ -44,7 +44,7 @@ import gc
 # from helper_img_and_fig_tools import show_image, save_plt_fig_quick_figs, save_img_quick_figs
 
 
-
+import yaml
 
 
 
@@ -55,8 +55,8 @@ get_mIoU_from_predictions, get_conf_matrix, conf_matrix_to_mIoU are adapted from
 from train_with_knowledge_distillation import get_mIoU_from_predictions, get_conf_matrix, conf_matrix_to_mIoU
 """
 
-
-def get_conf_matrix(predictions, targets, num_classes=2):
+@py_log.autolog(passed_logger=MY_LOGGER)
+def get_conf_matrix(predictions: np.ndarray, targets: np.ndarray, num_classes=2):
     """
     predictions and targets can be matrixes or tensors.
     
@@ -66,8 +66,8 @@ def get_conf_matrix(predictions, targets, num_classes=2):
 
     try:
 
-        predictions_np = predictions.data.cpu().long().numpy()
-        targets_np = targets.cpu().long().numpy()
+        predictions_np = predictions.astype(np.uint64)
+        targets_np = targets.astype(np.uint64)
         # for batch of predictions
         # if len(np.unique(targets)) != 2:
         #    print(len(np.unique(targets)))
@@ -155,7 +155,7 @@ def get_conf_matrix(predictions, targets, num_classes=2):
 
 
 
-
+@py_log.autolog(passed_logger=MY_LOGGER)
 def get_IoU_from_predictions(predictions, targets, num_classes=2):
     """
     Returns vector of IoU for each class.
@@ -174,6 +174,7 @@ def get_IoU_from_predictions(predictions, targets, num_classes=2):
         py_log_always_on.log_stack(MY_LOGGER)
         raise e
 
+@py_log.autolog(passed_logger=MY_LOGGER)
 def conf_matrix_to_IoU(confusion_matrix, n_classes):
     """
     c = get_conf_matrix(np.array([0,1,2,3,3]), np.array([0,2,2,3,3]))
@@ -255,75 +256,52 @@ class MultiClassDiceLoss():
     def __init__(self, smooth=1):
         self.smooth = smooth
 
+    @py_log.autolog(passed_logger=MY_LOGGER)
     def forward(self, inputs:np.ndarray, targets:np.ndarray):
 
+        try:
 
             # Initialize Dice Loss
             dice_loss = 0.0
 
+            c = 1 # skip background class
 
-            # Iterate over each class
-            for c in range(inputs.shape[1]):
-                
-                # since our imgs are imbalanced (mostly background), i don't want the background to affect the loss too much
-                # So in the return we also divide with one less.
-                if c == 0:
-                    continue
-
-                # input_to_be_flat = inputs[:,c,:,:].squeeze(1)
-                # input_flat = input_to_be_flat.reshape(-1)
-                input_flat = inputs.reshape(-1)
-                
-                target_to_be_flat = (targets == c).asfloat()
-                target_flat = target_to_be_flat.reshape(-1)
+            # input_to_be_flat = inputs[:,c,:,:].squeeze(1)
+            # input_flat = input_to_be_flat.reshape(-1)
+            input_flat = inputs.reshape(-1)
+            
+            target_to_be_flat = (targets == c).astype(np.float32)
+            target_flat = target_to_be_flat.reshape(-1)
 
 
 
 
-                # Compute intersection
-                intersection = (input_flat * target_flat)
-                intersection = intersection.sum()
-                
-                # Compute Dice Coefficient for this class
-                dice = (2. * intersection + self.smooth) / (input_flat.sum() + target_flat.sum() + self.smooth)
-                
-                # Accumulate Dice Loss
-                dice_loss += 1 - dice
+            # Compute intersection
+            intersection = (input_flat * target_flat)
+            intersection = intersection.sum()
+            
+            # Compute Dice Coefficient for this class
+            dice = (2. * intersection + self.smooth) / (input_flat.sum() + target_flat.sum() + self.smooth)
+            
+            # Accumulate Dice Loss
+            dice_loss += 1 - dice
             
             # Average over all classes
             dice_loss =  dice_loss / (inputs.shape[1] - 1) # -1 because we skip the background class
 
             return dice_loss
 
+        except Exception as e:
+            py_log_always_on.log_stack(MY_LOGGER)
+            raise e
+
 mcdl = MultiClassDiceLoss()
 
 
 
 
-zoom_factor = 1.0
-zoom_step = 0.1
-min_zoom = 0.5
-max_zoom = 3.0
 
-def mouse_callback(event, x, y, flags, param):
-    global zoom_factor
-
-    if event == cv2.EVENT_MOUSEWHEEL:
-        if flags > 0:  # Scroll up
-            zoom_factor = min(max_zoom, zoom_factor + zoom_step)
-        else:  # Scroll down
-            zoom_factor = max(min_zoom, zoom_factor - zoom_step)
-
-        # Calculate the new size
-        new_width = int(image.shape[1] * zoom_factor)
-        new_height = int(image.shape[0] * zoom_factor)
-        resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-
-        # Display the resized image
-        cv2.imshow('Zoomed Image', resized_image)
-
-
-
+import pickle
 
 
 
@@ -337,7 +315,15 @@ import numpy as np
 folders = ['bcosfire', 'coye2']
 bin_threshs = [0.02 * i for i in range(1, 51)]
 
-results = {name: {bin_thresh: {k: None for k in ["MCDL", "IoU"]} for bin_thresh in bin_threshs} for name in folders}
+
+# folders = ['bcosfire']
+# bin_threshs = [0.5 * i for i in range(0, 3)]
+
+
+
+
+
+results = {name: {bin_thresh: {k: None for k in ["IoU"]} for bin_thresh in bin_threshs} for name in folders}
 
 
 for folder in folders:
@@ -352,121 +338,180 @@ for folder in folders:
         if not (stripped.endswith("_bin") or stripped.endswith("_gt")):
             pred_files_names_stripped.append(stripped)
     
-    print(f"pred_files_names_stripped: {pred_files_names_stripped}")
+    # print(f"pred_files_names_stripped: {pred_files_names_stripped}")
     
     ground_truth_files_names = [f"{name}_gt.png" for name in pred_files_names_stripped]
     pred_files_names = [f"{name}.png" for name in pred_files_names_stripped]
 
-    print(f"pred_files_names: {pred_files_names}")
-    print(f"ground_truth_files_names: {ground_truth_files_names}")
+    # print(f"pred_files_names: {pred_files_names}")
+    # print(f"ground_truth_files_names: {ground_truth_files_names}")
 
 
 
-    for bin_thresh in bin_threshs:
+
+
+
+    # MCDL doesnt really make sense in this situation.
+    # What the alg is predicting is never supposed to mimic the target.
+    # Only after the binarization it is supposed to mimic the target. So it makes no sense to do it that way.
+
+    # # this is irrelevant to the threashold so only needs to be done once
+    
+    # MCDL = 0
+
+    # for ix2, (pred_file_name, gt_file_name) in enumerate(zip(pred_files_names, ground_truth_files_names)):
+        
+        
+    #     pred_file = cv2.imread(osp.join(folder_path, pred_file_name), cv2.IMREAD_GRAYSCALE)
+    #     gt_file = cv2.imread(osp.join(folder_path, gt_file_name), cv2.IMREAD_GRAYSCALE)
+
+    #     pred_file
+    #     gt_binary = gt_file > 0
+    #     py_log.log_manual(MY_LOGGER, pred_file=pred_file, gt_binary=gt_binary)
+    #     MCDL += mcdl.forward(pred_file, gt_binary)
+
+    #     break
+
+    # MCDL /= len(pred_files_names)
+
+
+
+    for ix, bin_thresh in enumerate(bin_threshs):
         IoU = 0
-        F1 = 0
-        MCDL = 0
-        for pred_file_name, gt_file_name in zip(pred_files_names, ground_truth_files_names):
+        # F1 = 0
+        for ix2, (pred_file_name, gt_file_name) in enumerate(zip(pred_files_names, ground_truth_files_names)):
+            
+            
             pred_file = cv2.imread(osp.join(folder_path, pred_file_name), cv2.IMREAD_GRAYSCALE)
             gt_file = cv2.imread(osp.join(folder_path, gt_file_name), cv2.IMREAD_GRAYSCALE)
 
-            print(f"pred_file_name: {pred_file_name}")
-            print(f"gt_file_name: {gt_file_name}")
-            print(f"pred_file: {pred_file}")
-            print(f"gt_file: {gt_file}")
+            # print(f"pred_file_name: {pred_file_name}")
+            # print(f"gt_file_name: {gt_file_name}")
+            # print(f"pred_file: {pred_file}")
+            # print(f"gt_file: {gt_file}")
 
-            py_log.log_manual(MY_LOGGER, pred_file, gt_file)
+            # py_log.log_manual(MY_LOGGER, pred_file=pred_file, gt_file=gt_file)
             
-            cv2.namedWindow("pred", cv2.WINDOW_NORMAL)
-            cv2.namedWindow("gt", cv2.WINDOW_NORMAL)
+            # cv2.namedWindow("pred", cv2.WINDOW_NORMAL)
+            # cv2.namedWindow("gt", cv2.WINDOW_NORMAL)
 
-            cv2.resizeWindow("pred", 200, 200)
-            cv2.resizeWindow("gt", 200, 200)
+            # cv2.resizeWindow("pred", 200, 200)
+            # cv2.resizeWindow("gt", 200, 200)
 
-            cv2.imshow("pred", pred_file)
-            cv2.imshow("gt", gt_file)
+            # cv2.imshow("pred", pred_file)
+            # cv2.imshow("gt", gt_file)
 
 
-            cv2.waitKey(0)
+            # cv2.waitKey(0)
 
-            input("Press Enter to continue...")
-            cv2.destroyAllWindows()
+            # input("Press Enter to continue...")
+            # cv2.destroyAllWindows()
 
-            pred_binary = pred_file > bin_thresh * 255
+
+            pred_binary = pred_file > bin_thresh
             gt_binary = gt_file > 0
 
-            IoU += get_IoU_from_predictions(pred_binary, gt_binary)[0][1]
-            MCDL += get_F1_from_predictions(pred_binary, gt_binary)
+            py_log.log_manual(MY_LOGGER, pred_binary=pred_binary, gt_binary=gt_binary)
 
-    
+            curr_IoU, where_is_union_zero = get_IoU_from_predictions(pred_binary, gt_binary)
+            if not where_is_union_zero[1]:
+                IoU += curr_IoU.item(1) # only IoU for sclera (not background)
 
-    ground_truths = [pred_file.split("_")[0] for pred_file in pred_files_stripped]
+            # F1 += get_F1_from_predictions(pred_binary, gt_binary)
 
+            print(f"pred_file_name: {pred_file_name}, IoU: {IoU}")
+        
+        IoU /= len(pred_files_names)
+        # F1 /= len(pred_files_names)
+        
 
-    for pred_file in pred_files:
+        results[folder][bin_thresh]["IoU"] = IoU
+        # results[folder][bin_thresh]["F1"] = F1
+        # results[folder][bin_thresh]["MCDL"] = MCDL
 
-        # strip of extension, with rstrip
-
-        goal_imgs = osp.join("combined_data", "Images")
-        pred_imgs = osp.join("full_vein_sclera_data", "Images")
-
-
-
-
-
-
-
-
-approx_IoU_size = 0
-IoU_size = 0
-num_batches = len(dataloader)
-
-self.model.eval()
-test_loss, approx_IoU, F1, IoU = 0, 0, 0, 0
-with torch.no_grad():
-    for X, y in dataloader:
-            X, y = X.to(self.device), y.to(self.device)
-            pred = self.model(X)
+        print(f"{ix}, folder: {folder}, bin_thresh: {bin_thresh}, IoU: {IoU}")
 
 
-            # loss_fn computes the mean loss for the entire batch.
-            # We cold also get the loss for each image, but we don't need to.
-            # https://discuss.pytorch.org/t/loss-for-each-sample-in-batch/36200
+with open("results.pkl", "wb") as f:
+    pickle.dump(results, f)
 
-            # https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html
-            # The fact the shape of pred and y are diferent seems to be correct regarding loss_fn.
-            test_loss += self.loss_fn(pred, y).item()
+# make yaml
+with open("results.yaml", "w") as f:
+    yaml.dump(results, f)
 
-
-
-            pred_binary = pred[:, 1] > pred[:, 0]
-
-            F1 += get_F1_from_predictions(pred_binary, y)
-            approx_IoUs, where_is_union_zero = get_IoU_from_predictions(pred_binary, y)
-            if where_is_union_zero[1] == False:
-                approx_IoU += approx_IoUs.item(1) # only IoU for sclera (not background)
-                approx_IoU_size += 1
-
-
-            # X and y are tensors of a batch, so we have to go over them all
-            for i in range(X.shape[0]):
-
-                pred_binary = pred[i][1] > pred[i][0]
-
-
-                curr_IoU, where_is_union_zero = get_IoU_from_predictions(pred_binary, y[i])
-                if where_is_union_zero[1] == False:
-                    IoU += curr_IoU.item(1) # only IoU for sclera (not background)
-                    IoU_size += 1
-                # print(f"This image's IoU: {curr_IoU:>.6f}%")
+print(results)
 
 
 
 
-test_loss /= num_batches # not (num_batches * batch_size), because we are already adding batch means
-approx_IoU /= approx_IoU_size
-F1 /= num_batches
-IoU /= IoU_size # should be same or even more accurate as (num_batches * batch_size)
+
+#     ground_truths = [pred_file.split("_")[0] for pred_file in pred_files_stripped]
+
+
+#     for pred_file in pred_files:
+
+#         # strip of extension, with rstrip
+
+#         goal_imgs = osp.join("combined_data", "Images")
+#         pred_imgs = osp.join("full_vein_sclera_data", "Images")
+
+
+
+
+
+
+
+
+# approx_IoU_size = 0
+# IoU_size = 0
+# num_batches = len(dataloader)
+
+# self.model.eval()
+# test_loss, approx_IoU, F1, IoU = 0, 0, 0, 0
+# with torch.no_grad():
+#     for X, y in dataloader:
+#             X, y = X.to(self.device), y.to(self.device)
+#             pred = self.model(X)
+
+
+#             # loss_fn computes the mean loss for the entire batch.
+#             # We cold also get the loss for each image, but we don't need to.
+#             # https://discuss.pytorch.org/t/loss-for-each-sample-in-batch/36200
+
+#             # https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html
+#             # The fact the shape of pred and y are diferent seems to be correct regarding loss_fn.
+#             test_loss += self.loss_fn(pred, y).item()
+
+
+
+#             pred_binary = pred[:, 1] > pred[:, 0]
+
+#             F1 += get_F1_from_predictions(pred_binary, y)
+#             approx_IoUs, where_is_union_zero = get_IoU_from_predictions(pred_binary, y)
+#             if where_is_union_zero[1] == False:
+#                 approx_IoU += approx_IoUs.item(1) # only IoU for sclera (not background)
+#                 approx_IoU_size += 1
+
+
+#             # X and y are tensors of a batch, so we have to go over them all
+#             for i in range(X.shape[0]):
+
+#                 pred_binary = pred[i][1] > pred[i][0]
+
+
+#                 curr_IoU, where_is_union_zero = get_IoU_from_predictions(pred_binary, y[i])
+#                 if where_is_union_zero[1] == False:
+#                     IoU += curr_IoU.item(1) # only IoU for sclera (not background)
+#                     IoU_size += 1
+#                 # print(f"This image's IoU: {curr_IoU:>.6f}%")
+
+
+
+
+# test_loss /= num_batches # not (num_batches * batch_size), because we are already adding batch means
+# approx_IoU /= approx_IoU_size
+# F1 /= num_batches
+# IoU /= IoU_size # should be same or even more accurate as (num_batches * batch_size)
 
 
 

@@ -1,0 +1,44 @@
+bcosfire:
+  0.0:
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - &id001 !!python/object/apply:numpy.dtype
+      args:
+      - f8
+      - false
+      - true
+      state: !!python/tuple
+      - 3
+      - <
+      - null
+      - null
+      - null
+      - -1
+      - -1
+      - 0
+    - !!binary |
+      AAAAAAAA+P8=
+    IoU: 0.09329061229422081
+    MCDL: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      epF3Wtn5Mz8=
+  0.5:
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      AAAAAAAA+P8=
+    IoU: 0.009400539631576962
+    MCDL: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      epF3Wtn5Mz8=
+  1.0:
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      +ogWh+Ta7z8=
+    IoU: 0.0
+    MCDL: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      epF3Wtn5Mz8=
