@@ -103,10 +103,11 @@ function evaluate_alg(alg, save, overwrite, binthresh)
 		binthresh = 0.0;
 	end
 
+	src_dir
 	set = imageSet(src_dir);
 	k = 0;
 	% Reduce number of workers below if too much memory is being used
-	parfor (id_image = 1:set.Count, 1)
+	parfor (id_image = 1:set.Count, 10)
 		% If it's a mask image, skip it
 		[path, basename, ~] = fileparts(set.ImageLocation{id_image});
 		if regexp(basename, '\d+[LR]_[lrsu]_\d+_')
