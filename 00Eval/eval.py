@@ -317,7 +317,7 @@ bin_threshs = [0.02 * i for i in range(1, 51)]
 
 
 # folders = ['bcosfire']
-# bin_threshs = [0.5 * i for i in range(0, 3)]
+# bin_threshs = [0.2 * i for i in range(0, 6)]
 
 
 
@@ -385,6 +385,9 @@ for folder in folders:
             pred_file = cv2.imread(osp.join(folder_path, pred_file_name), cv2.IMREAD_GRAYSCALE)
             gt_file = cv2.imread(osp.join(folder_path, gt_file_name), cv2.IMREAD_GRAYSCALE)
 
+            pred_file = pred_file / 255
+            gt_file = gt_file / 255
+
             # print(f"pred_file_name: {pred_file_name}")
             # print(f"gt_file_name: {gt_file_name}")
             # print(f"pred_file: {pred_file}")
@@ -408,7 +411,7 @@ for folder in folders:
             # cv2.destroyAllWindows()
 
 
-            pred_binary = pred_file > bin_thresh
+            pred_binary = pred_file >= bin_thresh
             gt_binary = gt_file > 0
 
             py_log.log_manual(MY_LOGGER, pred_binary=pred_binary, gt_binary=gt_binary)
@@ -431,7 +434,7 @@ for folder in folders:
 
         print(f"{ix}, folder: {folder}, bin_thresh: {bin_thresh}, IoU: {IoU}")
 
-if False:
+if True:
     with open("results.pkl", "wb") as f:
         pickle.dump(results, f)
 
