@@ -431,13 +431,13 @@ for folder in folders:
 
         print(f"{ix}, folder: {folder}, bin_thresh: {bin_thresh}, IoU: {IoU}")
 
+if False:
+    with open("results.pkl", "wb") as f:
+        pickle.dump(results, f)
 
-with open("results.pkl", "wb") as f:
-    pickle.dump(results, f)
-
-# make yaml
-with open("results.yaml", "w") as f:
-    yaml.dump(results, f)
+    # make yaml
+    with open("results.yaml", "w") as f:
+        yaml.dump(results, f)
 
 print(results)
 

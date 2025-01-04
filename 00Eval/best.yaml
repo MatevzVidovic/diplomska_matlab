@@ -1,0 +1,8 @@
+bcosfire:
+  IoU: !!python/tuple
+  - 0.10834466616457428
+  - 1.0
+coye2:
+  IoU: !!python/tuple
+  - 0.08891362236112486
+  - 1.0
